@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -51,419 +51,596 @@ const PowerFraction = ({ numerator, denominator, power }) => (
 );
 
 const QuotientPowerProperty = () => {
+  // State management
+  const [numbers, setNumbers] = useState({ num: 3, den: 4, power: 2 });
+  const [showSteps, setShowSteps] = useState(false);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [userInputs, setUserInputs] = useState({
+    step1Num: '',
+    step1Den: '',
+    step2: ''
+  });
+  const [inputStatus, setInputStatus] = useState({
+    step1Num: null,
+    step1Den: null,
+    step2: null
+  });
+  const [stepCompleted, setStepCompleted] = useState({
+    step1: false,
+    step2: false
+  });
+  const [stepSkipped, setStepSkipped] = useState({
+    step1: false,
+    step2: false
+  });
+  const [showNavigationButtons, setShowNavigationButtons] = useState(false);
+  const [navigationDirection, setNavigationDirection] = useState(null);
+  const [inputError, setInputError] = useState('');
+
+  // Generate random numbers
   const generateNumbers = () => {
     const num = Math.floor(Math.random() * 9) + 2;
     const den = Math.floor(Math.random() * 9) + 2;
-    const power = Math.floor(Math.random() * 2) + 2;
-    return { num, den, power };
+    const power = Math.floor(Math.random() * 8) + 2;
+    setNumbers({ num, den, power });
+    setInputError('');
+    setShowSteps(false);
   };
 
-  const [numbers, setNumbers] = useState(generateNumbers());
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [solutionNumbers, setSolutionNumbers] = useState(generateNumbers());
-  const [step1Complete, setStep1Complete] = useState(false);
-  const [step2Complete, setStep2Complete] = useState(false);
-  const [step1Inputs, setStep1Inputs] = useState({
-    numeratorPower: '',
-    denominatorPower: ''
-  });
-  const [step2Inputs, setStep2Inputs] = useState({
-    numeratorResult: '',
-    denominatorResult: ''
-  });
-  const [hasError, setHasError] = useState({
-    numerator: false,
-    denominator: false,
-    numeratorResult: false,
-    denominatorResult: false
-  });
-  const [inputs, setInputs] = useState({
-    numerator: "",
-    denominator: "",
-    power: ""
-  });
+  // Show navigation buttons when all steps are completed
+  useEffect(() => {
+    if (stepCompleted.step1 && stepCompleted.step2) {
+      setShowNavigationButtons(true);
+    }
+  }, [stepCompleted]);
 
-  const handleInputChange = (field, value) => {
-    let updateField = field;
-    if (field === 'numerator') updateField = 'num';
-    if (field === 'denominator') updateField = 'den';
-    
+  // Handle input changes
+  const handleNumberChange = (e, field) => {
+    const value = e.target.value;
     let clampedValue = value;
     if (value && !isNaN(value)) {
-      const maxValue = field === 'power' ? 3 : 10;
+      const maxValue = field === 'power' ? 9 : 10;
       const minValue = field === 'power' ? 2 : 1;
       clampedValue = Math.max(minValue, Math.min(parseInt(value), maxValue));
     }
     
-    const newInputs = { ...inputs, [field]: clampedValue };
-    setInputs(newInputs);
+    setNumbers(prev => ({
+      ...prev,
+      [field]: clampedValue ? parseInt(clampedValue) : prev[field]
+    }));
+    setInputError('');
+    setShowSteps(false);
+  };
+
+  // Validate inputs before calculating
+  const validateInputs = () => {
+    const { num, den, power } = numbers;
+    if (!num || !den || !power) {
+      return false;
+    }
+    if (num < 1 || den < 1 || power < 2) {
+      return false;
+    }
+    return true;
+  };
+
+  // Calculate steps
+  const calculateSteps = () => {
+    if (!validateInputs()) {
+      setInputError('Please enter valid numbers (numerator/denominator: 1-10, power: 2-9)');
+      return;
+    }
+
+    setShowSteps(true);
+    setUserInputs({ step1Num: '', step1Den: '', step2: '' });
+    setCurrentStepIndex(0);
+    setStepCompleted({ step1: false, step2: false });
+    setInputStatus({ step1Num: null, step1Den: null, step2: null });
+    setShowNavigationButtons(false);
+  };
+
+  // Handle step input change
+  const handleStepInputChange = (e, field) => {
+    setUserInputs({ ...userInputs, [field]: e.target.value });
+    setInputStatus({ ...inputStatus, [field]: null });
+  };
+
+  // Skip step
+  const skipStep = (step) => {
+    if (step === 'step1') {
+      setUserInputs(prev => ({ ...prev, step1Num: numbers.power.toString(), step1Den: numbers.power.toString() }));
+      setInputStatus(prev => ({ ...prev, step1Num: 'correct', step1Den: 'correct' }));
+      setStepCompleted(prev => ({ ...prev, step1: true }));
+      setStepSkipped(prev => ({ ...prev, step1: true }));
+      return;
+    }
+    let answer = '';
+    if (step === 'step2') {
+      const numResult = Math.pow(numbers.num, numbers.power);
+      const denResult = Math.pow(numbers.den, numbers.power);
+      answer = `${numResult}/${denResult}`;
+    }
     
-    if (clampedValue && !isNaN(clampedValue)) {
-      setNumbers(prev => ({
+    setUserInputs({ ...userInputs, [step]: answer });
+    setInputStatus({ ...inputStatus, [step]: 'correct' });
+    setStepCompleted(prev => ({ ...prev, [step]: true }));
+    setStepSkipped(prev => ({ ...prev, [step]: true }));
+  };
+
+  // Check step answer
+  const checkStep = (step) => {
+    if (step === 'step1') {
+      const numCorrect = parseInt(userInputs.step1Num) === numbers.power;
+      const denCorrect = parseInt(userInputs.step1Den) === numbers.power;
+      setInputStatus(prev => ({
         ...prev,
-        [updateField]: parseInt(clampedValue)
+        step1Num: numCorrect ? 'correct' : 'incorrect',
+        step1Den: denCorrect ? 'correct' : 'incorrect'
       }));
+      if (numCorrect && denCorrect) {
+        setStepCompleted(prev => ({ ...prev, step1: true }));
+        setStepSkipped(prev => ({ ...prev, step1: false }));
+      }
+      return;
+    }
+    let isCorrect = false;
+    const userAnswer = userInputs[step];
+    
+    if (step === 'step2') {
+      const [numResult, denResult] = userAnswer.split('/').map(Number);
+      const correctNumResult = Math.pow(numbers.num, numbers.power);
+      const correctDenResult = Math.pow(numbers.den, numbers.power);
+      isCorrect = numResult === correctNumResult && denResult === correctDenResult;
+    }
+
+    setInputStatus({ ...inputStatus, [step]: isCorrect ? 'correct' : 'incorrect' });
+    
+    if (isCorrect) {
+      setStepCompleted(prev => ({ ...prev, [step]: true }));
+      setStepSkipped(prev => ({ ...prev, [step]: false }));
     }
   };
 
-  const handleNewExample = () => {
-    const newNumbers = generateNumbers();
-    setNumbers(newNumbers);
-    setInputs({
-      numerator: newNumbers.num.toString(),
-      denominator: newNumbers.den.toString(),
-      power: newNumbers.power.toString()
-    });
-    setStep1Complete(false);
-    setStep2Complete(false);
-    setShowAnswer(false);
-    setHasError({
-      numerator: false,
-      denominator: false,
-      numeratorResult: false,
-      denominatorResult: false
-    });
-    setStep1Inputs({
-      numeratorPower: '',
-      denominatorPower: ''
-    });
-    setStep2Inputs({
-      numeratorResult: '',
-      denominatorResult: ''
-    });
-  };
-
-  const handleStep1Check = () => {
-    const numPower = parseInt(step1Inputs.numeratorPower);
-    const denPower = parseInt(step1Inputs.denominatorPower);
+  // Handle navigation
+  const handleNavigateHistory = (direction) => {
+    setNavigationDirection(direction);
     
-    const isNumeratorCorrect = !isNaN(numPower) && numPower === solutionNumbers.power;
-    const isDenominatorCorrect = !isNaN(denPower) && denPower === solutionNumbers.power;
-    
-    setHasError(prev => ({
-      ...prev,
-      numerator: !isNumeratorCorrect,
-      denominator: !isDenominatorCorrect
-    }));
-
-    if (isNumeratorCorrect && isDenominatorCorrect) {
-      setStep1Complete(true);
+    if (direction === 'back' && currentStepIndex > 0) {
+      setCurrentStepIndex(prev => prev - 1);
+    } else if (direction === 'forward' && currentStepIndex < 1) {
+      setCurrentStepIndex(prev => prev + 1);
     }
+
+    setTimeout(() => {
+      setNavigationDirection(null);
+    }, 300);
   };
 
-  const handleStep2Check = () => {
-    const numResult = parseInt(step2Inputs.numeratorResult);
-    const denResult = parseInt(step2Inputs.denominatorResult);
-    
-    const correctNumerator = Math.pow(solutionNumbers.num, solutionNumbers.power);
-    const correctDenominator = Math.pow(solutionNumbers.den, solutionNumbers.power);
-    
-    const isNumeratorCorrect = !isNaN(numResult) && numResult === correctNumerator;
-    const isDenominatorCorrect = !isNaN(denResult) && denResult === correctDenominator;
-    
-    setHasError(prev => ({
-      ...prev,
-      numeratorResult: !isNumeratorCorrect,
-      denominatorResult: !isDenominatorCorrect
-    }));
-
-    if (isNumeratorCorrect && isDenominatorCorrect) {
-      setStep2Complete(true);
-    }
-  };
-
-  return (
-    <div className="bg-gray-100 p-8 w-[780px] overflow-auto">
-      <Card className="w-[748px] mx-auto shadow-md bg-white">
-        <div className="bg-sky-50 p-6 rounded-t-lg w-[748px]">
-          <h1 className="text-sky-900 text-2xl font-bold">Power of Quotients Property</h1>
-          <p className="text-sky-800">Practice raising fractions to powers!</p>
-        </div>
-
-        <CardContent className="space-y-6 pt-6 w-[748px]">
-          <div className="bg-blue-50 p-4 rounded border border-blue-200">
-            <h2 className="text-blue-900 font-bold mb-2">Understanding Powers of Fractions</h2>
-            <p className="text-blue-600 mb-2">
-              When raising a fraction to a power, the power applies to both the numerator and denominator separately.
-            </p>
-            <div className="p-4 text-center text-xl flex items-center justify-center gap-3">
-              <PowerFraction numerator="a" denominator="b" power="n" />
-              <span>=</span>
+  const steps = [
+    {
+      main: 'Step 1: Apply the power to both numerator and denominator',
+      formula: (
+        <div className="flex items-center gap-3 text-lg p-4">
+          <PowerFraction 
+            numerator={numbers.num}
+            denominator={numbers.den}
+            power={numbers.power}
+          />
+          <span>=</span>
+          {stepCompleted.step1 ? (
+            <div className="text-[#008545] font-medium">
               <Fraction 
-                numerator={<span>a<sup>n</sup></span>}
-                denominator={<span>b<sup>n</sup></span>}
+                numerator={<span>{numbers.num}<sup>{numbers.power}</sup></span>}
+                denominator={<span>{numbers.den}<sup>{numbers.power}</sup></span>}
               />
             </div>
-            <p className="text-blue-600 mt-4">
-              Practice simplifying powers using this property!
-            </p>
+          ) : (
+            <Fraction 
+              numerator={
+                <div className="inline-flex items-start relative pb-2">
+                  <span>{numbers.num}</span>
+                  <input
+                    type="number"
+                    value={userInputs.step1Num || ''}
+                    onChange={(e) => handleStepInputChange(e, 'step1Num')}
+                    className={`no-spin w-8 h-6 absolute -mt-2 ml-3 p-0 text-center text-sm border rounded ${
+                      inputStatus.step1Num === 'correct'
+                        ? 'border-green-500'
+                        : inputStatus.step1Num === 'incorrect'
+                        ? 'border-yellow-500'
+                        : 'border-gray-300'
+                    }`}
+                    min="1"
+                    max="12"
+                  />
+                </div>
+              }
+              denominator={
+                <div className="inline-flex items-start relative mt-3">
+                  <span>{numbers.den}</span>
+                  <input
+                    type="number"
+                    value={userInputs.step1Den || ''}
+                    onChange={(e) => handleStepInputChange(e, 'step1Den')}
+                    className={`no-spin w-8 h-6 absolute -mt-2 ml-3 p-0 text-center text-sm border rounded ${
+                      inputStatus.step1Den === 'correct'
+                        ? 'border-green-500'
+                        : inputStatus.step1Den === 'incorrect'
+                        ? 'border-yellow-500'
+                        : 'border-gray-300'
+                    }`}
+                    min="1"
+                    max="12"
+                  />
+                </div>
+              }
+            />
+          )}
+        </div>
+      ),
+      answer: numbers.power.toString()
+    },
+    {
+      main: 'Step 2: Calculate the powers',
+      formula: (
+        <div className="flex items-center justify-center gap-3 text-lg">
+          <Fraction 
+            numerator={<span>{numbers.num}<sup>{numbers.power}</sup></span>}
+            denominator={<span>{numbers.den}<sup>{numbers.power}</sup></span>}
+          />
+          <span>=</span>
+          {stepCompleted.step2 ? (
+            <div className="text-[#008545] font-medium">
+              <Fraction 
+                numerator={Math.pow(numbers.num, numbers.power)}
+                denominator={Math.pow(numbers.den, numbers.power)}
+              />
+            </div>
+          ) : (
+            <Fraction 
+              numerator={`?`}
+              denominator={`?`}
+            />
+          )}
+        </div>
+      ),
+      answer: `${Math.pow(numbers.num, numbers.power)}/${Math.pow(numbers.den, numbers.power)}`
+    }
+  ];
+
+  return (
+    <>
+      <style>{`
+        @property --r {
+          syntax: '<angle>';
+          inherits: false;
+          initial-value: 0deg;
+        }
+
+        .glow-button { 
+          min-width: auto; 
+          height: auto; 
+          position: relative; 
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1;
+          transition: all .3s ease;
+          padding: 7px;
+        }
+
+        .glow-button::before {
+          content: "";
+          display: block;
+          position: absolute;
+          background: #fff;
+          inset: 2px;
+          border-radius: 4px;
+          z-index: -2;
+        }
+
+        .simple-glow {
+          background: conic-gradient(
+            from var(--r),
+            transparent 0%,
+            rgb(0, 255, 132) 2%,
+            rgb(0, 214, 111) 8%,
+            rgb(0, 174, 90) 12%,
+            rgb(0, 133, 69) 14%,
+            transparent 15%
+          );
+          animation: rotating 3s linear infinite;
+          transition: animation 0.3s ease;
+        }
+
+        .simple-glow.stopped {
+          animation: none;
+          background: none;
+        }
+
+        @keyframes rotating {
+          0% {
+            --r: 0deg;
+          }
+          100% {
+            --r: 360deg;
+          }
+        }
+
+        .nav-button {
+          opacity: 1;
+          cursor: default !important;
+          position: relative;
+          z-index: 2;
+          outline: 2px white solid;
+        }
+
+        .nav-button-orbit {
+          position: absolute;
+          inset: -4px;
+          border-radius: 50%;
+          background: conic-gradient(
+            from var(--r),
+            transparent 0%,
+            rgb(0, 255, 132) 2%,
+            rgb(0, 214, 111) 8%,
+            rgb(0, 174, 90) 12%,
+            rgb(0, 133, 69) 14%,
+            transparent 15%
+          );
+          animation: rotating 3s linear infinite;
+          z-index: 0;
+        }
+
+        .nav-button-orbit::before {
+          content: "";
+          position: absolute;
+          inset: 2px;
+          background: transparent;
+          border-radius: 50%;
+          z-index: 0;
+        }
+
+        .nav-button svg {
+          position: relative;
+          z-index: 1;
+        }
+
+        .no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .no-spin[type=number] { -moz-appearance: textfield; }
+      `}</style>
+      <div className="w-[500px] h-auto mx-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-2px_rgba(0,0,0,0.1),0_0_0_1px_rgba(0,0,0,0.05)] bg-white rounded-lg overflow-hidden select-none">
+        <div className="p-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-[#5750E3] text-sm font-medium select-none">Power of Quotients Property</h2>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-gray-700 text-lg font-bold">Choose your numbers:</h3>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div>
-                <Label htmlFor="numerator">Numerator</Label>
-                <Input
-                  id="numerator"
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Numerator</label>
+                <input
                   type="number"
-                  min="2"
-                  max="4"
-                  value={inputs.numerator}
-                  onChange={(e) => handleInputChange('numerator', e.target.value)}
-                  className="border border-blue-300 rounded mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="denominator">Denominator</Label>
-                <Input
-                  id="denominator"
-                  type="number"
+                  value={numbers.num}
+                  onChange={(e) => handleNumberChange(e, 'num')}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#5750E3]"
+                  placeholder="Numerator"
                   min="1"
                   max="10"
-                  value={inputs.denominator}
-                  onChange={(e) => handleInputChange('denominator', e.target.value)}
-                  className="border border-blue-300 rounded mt-1"
                 />
               </div>
-              <div>
-                <Label htmlFor="power">Power</Label>
-                <Input
-                  id="power"
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Denominator</label>
+                <input
                   type="number"
+                  value={numbers.den}
+                  onChange={(e) => handleNumberChange(e, 'den')}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#5750E3]"
+                  placeholder="Denominator"
                   min="1"
-                  max="3"
-                  value={inputs.power}
-                  onChange={(e) => handleInputChange('power', e.target.value)}
-                  className="border border-blue-300 rounded mt-1"
+                  max="10"
                 />
               </div>
-            </div>
-
-            <div className="flex justify-end mb-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Exponent</label>
+                <input
+                  type="number"
+                  value={numbers.power}
+                  onChange={(e) => handleNumberChange(e, 'power')}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[#5750E3]"
+                  placeholder="Power"
+                  min="2"
+                  max="9"
+                />
+              </div>
               <Button 
-                onClick={handleNewExample}
-                className="bg-sky-500 hover:bg-sky-600 text-white px-4 flex items-center gap-2"
+                onClick={generateNumbers}
+                className="bg-[#008545] hover:bg-[#00703d] text-white px-4 mt-6 h-[42px]"
               >
-                <RefreshCw className="w-4 h-4" />
                 Random
               </Button>
             </div>
 
-            <div className="text-center text-2xl flex items-center justify-center h-32">
-              <div className="-mt-5">
-                <PowerFraction 
-                  numerator={numbers.num}
-                  denominator={numbers.den}
-                  power={numbers.power}
-                />
-              </div>
-            </div>
-            
-            <Button 
-              onClick={() => {
-                setSolutionNumbers(numbers);
-                setStep1Complete(false);
-                setStep2Complete(false);
-                setStep1Inputs({
-                  numeratorPower: '',
-                  denominatorPower: ''
-                });
-                setStep2Inputs({
-                  numeratorResult: '',
-                  denominatorResult: ''
-                });
-                setShowAnswer(false);
-                setHasError({
-                  numerator: false,
-                  denominator: false,
-                  numeratorResult: false,
-                  denominatorResult: false
-                });
-                setTimeout(() => setShowAnswer(true), 0);
-              }}
-              className="w-full bg-blue-950 hover:bg-blue-900 text-white py-3"
-            >
-              Solve Step by Step
-            </Button>
+            {inputError && (
+              <p className="text-sm text-red-500">{inputError}</p>
+            )}
 
-            {showAnswer && (
+            <div className="text-center text-2xl flex items-center justify-center h-20 mb-4">
+              <PowerFraction 
+                numerator={numbers.num}
+                denominator={numbers.den}
+                power={numbers.power}
+              />
+            </div>
+
+            <div className={`glow-button ${!showSteps ? 'simple-glow' : 'simple-glow stopped'}`}>
+              <button 
+                onClick={calculateSteps}
+                className="w-full bg-[#008545] hover:bg-[#00703d] text-white text-sm py-2 rounded"
+              >
+                Solve Step by Step
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {showSteps && (
+          <div className="p-4 bg-gray-50">
+            <div className="space-y-2">
+              <h3 className="text-[#5750E3] text-sm font-medium mb-2">
+                Steps to solve the power of quotients:
+              </h3>
               <div className="space-y-4">
-                <h3 className="text-purple-600 text-xl font-bold">Solution Steps:</h3>
-                
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <p>1. Apply the power to both numerator and denominator:</p>
-                  <div className="text-center text-xl flex items-center justify-center gap-3 py-10">
-                    <PowerFraction 
-                      numerator={solutionNumbers.num}
-                      denominator={solutionNumbers.den}
-                      power={solutionNumbers.power}
-                    />
-                    <span>=</span>
-                    {step1Complete ? (
-                      <Fraction 
-                        numerator={<span>{solutionNumbers.num}<sup>{solutionNumbers.power}</sup></span>}
-                        denominator={<span>{solutionNumbers.den}<sup>{solutionNumbers.power}</sup></span>}
-                      />
+                <div className="w-full p-2 mb-1 bg-white border border-[#5750E3]/30 rounded-md">
+                  <p className="text-sm">{steps[currentStepIndex].main}</p>
+                  <div className="mt-1">
+                    {typeof steps[currentStepIndex].formula === 'string' ? (
+                      <pre className="text-sm whitespace-pre-wrap">{steps[currentStepIndex].formula}</pre>
                     ) : (
-                      <Fraction inputMode={true}
-                        numerator={
-                          <div className="inline-flex items-start">
-                            <span>{solutionNumbers.num}</span>
-                            <Input 
-                              type="number"
-                              value={step1Inputs.numeratorPower}
-                              onChange={(e) => {
-                                const value = Math.min(parseInt(e.target.value) || '', 12);
-                                setStep1Inputs(prev => ({
-                                  ...prev,
-                                  numeratorPower: value
-                                }));
-                                setHasError(prev => ({...prev, numerator: false}));
-                              }}
-                              className={`w-8 h-6 -mt-6 ml-1 p-0 text-center text-sm ${
-                                hasError.numerator ? 'border-red-500 focus:border-red-500' : 'border-blue-300'
-                              }`}
-                              min="1"
-                              max="12"
-                            />
-                          </div>
-                        }
-                        denominator={
-                          <div className="inline-flex items-start">
-                            <span>{solutionNumbers.den}</span>
-                            <Input 
-                              type="number"
-                              value={step1Inputs.denominatorPower}
-                              onChange={(e) => {
-                                const value = Math.min(parseInt(e.target.value) || '', 12);
-                                setStep1Inputs(prev => ({
-                                  ...prev,
-                                  denominatorPower: value
-                                }));
-                                setHasError(prev => ({...prev, denominator: false}));
-                              }}
-                              className={`w-8 h-8 -mt-4 ml-1 p-0 text-center ${
-                                hasError.denominator ? 'border-red-500 focus:border-red-500' : 'border-blue-300'
-                              }`}
-                              min="1"
-                              max="12"
-                            />
-                          </div>
-                        }
-                      />
+                      steps[currentStepIndex].formula
                     )}
                   </div>
-                  
-                  {!step1Complete && (
-                    <div className="flex gap-4 mt-4">
-                      <Button
-                        onClick={handleStep1Check}
-                        className="bg-blue-400 hover:bg-blue-500 flex-1"
-                      >
-                        Check
-                      </Button>
-                      <Button
-                        onClick={() => setStep1Complete(true)}
-                        className="bg-gray-400 hover:bg-gray-500 text-white flex-1"
-                      >
-                        Skip
-                      </Button>
-                    </div>
-                  )}
-
-                  {step1Complete && (
-                    <>
-                      <p>2. Calculate the powers:</p>
-                      <div className="text-center text-xl flex items-center justify-center gap-3">
-                        <Fraction 
-                          numerator={<span>{solutionNumbers.num}<sup>{solutionNumbers.power}</sup></span>}
-                          denominator={<span>{solutionNumbers.den}<sup>{solutionNumbers.power}</sup></span>}
-                        />
-                        <span>=</span>
-                        {step2Complete ? (
-                          <Fraction 
-                            numerator={Math.pow(solutionNumbers.num, solutionNumbers.power)}
-                            denominator={Math.pow(solutionNumbers.den, solutionNumbers.power)}
-                          />
-                        ) : (
-                          <div className="inline-flex flex-col items-center gap-2">
-                            <div className="w-24 flex justify-center">
-                              <Input 
-                                type="number"
-                                value={step2Inputs.numeratorResult}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setStep2Inputs(prev => ({
-                                    ...prev,
-                                    numeratorResult: value
-                                  }));
-                                  setHasError(prev => ({...prev, numeratorResult: false}));
-                                }}
-                                className={`w-12 h-6 text-center border-2 ${
-                                  hasError.numeratorResult ? 'border-red-500 focus:border-red-500' : 'border-blue-300'
-                                }`}
-                              />
-                            </div>
-                            <div className="w-24 border-t-2 border-black"></div>
-                            <div className="w-24 flex justify-center">
-                              <Input 
-                                type="number"
-                                value={step2Inputs.denominatorResult}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setStep2Inputs(prev => ({
-                                    ...prev,
-                                    denominatorResult: value
-                                  }));
-                                  setHasError(prev => ({...prev, denominatorResult: false}));
-                                }}
-                                className={`w-12 h-6 text-center border-2 ${
-                                  hasError.denominatorResult ? 'border-red-500 focus:border-red-500' : 'border-blue-300'
-                                }`}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      
-                      {!step2Complete && (
-                        <div className="flex gap-4 mt-4">
-                          <Button
-                            onClick={handleStep2Check}
-                            className="bg-blue-400 hover:bg-blue-500 flex-1"
+                  {!stepCompleted[`step${currentStepIndex + 1}`] && currentStepIndex === 0 && (
+                    <div className="flex gap-4 mt-4 justify-end">
+                      <div className="glow-button simple-glow">
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => checkStep(`step${currentStepIndex + 1}`)} 
+                            className="bg-[#008545] hover:bg-[#00703d] text-white text-sm px-4 py-2 rounded-md min-w-[80px]"
                           >
                             Check
-                          </Button>
-                          <Button
-                            onClick={() => setStep2Complete(true)}
-                            className="bg-gray-400 hover:bg-gray-500 text-white flex-1"
+                          </button>
+                          <button 
+                            onClick={() => skipStep(`step${currentStepIndex + 1}`)} 
+                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm px-4 py-2 rounded-md min-w-[80px]"
                           >
                             Skip
-                          </Button>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {!stepCompleted[`step${currentStepIndex + 1}`] && currentStepIndex === 1 && (
+                    <div className="flex items-center space-x-1 mt-2">
+                      <input
+                        type="text"
+                        value={userInputs[`step${currentStepIndex + 1}`]}
+                        onChange={(e) => handleStepInputChange(e, `step${currentStepIndex + 1}`)}
+                        placeholder="Enter as num/den"
+                        className={`w-full text-sm p-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-[#5750E3] ${
+                          inputStatus[`step${currentStepIndex + 1}`] === 'correct'
+                            ? 'border-green-500'
+                            : inputStatus[`step${currentStepIndex + 1}`] === 'incorrect'
+                            ? 'border-yellow-500'
+                            : 'border-gray-300'
+                        }`}
+                      />
+                      <div className="glow-button simple-glow">
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => checkStep(`step${currentStepIndex + 1}`)} 
+                            className="bg-[#008545] hover:bg-[#00703d] text-white text-sm px-4 py-2 rounded-md min-w-[80px]"
+                          >
+                            Check
+                          </button>
+                          <button 
+                            onClick={() => skipStep(`step${currentStepIndex + 1}`)} 
+                            className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm px-4 py-2 rounded-md min-w-[80px]"
+                          >
+                            Skip
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {stepCompleted[`step${currentStepIndex + 1}`] && !showNavigationButtons && (
+                    <div className="flex items-center gap-4 mt-2 justify-end">
+                      {!stepSkipped[`step${currentStepIndex + 1}`] && (
+                        <span className="text-green-600 font-bold select-none">Great Job!</span>
+                      )}
+                      {currentStepIndex < steps.length - 1 && (
+                        <div className="glow-button simple-glow">
+                          <button 
+                            onClick={() => {
+                              if (currentStepIndex < steps.length - 1) {
+                                setCurrentStepIndex(prev => prev + 1);
+                              }
+                            }}
+                            className="bg-[#008545] hover:bg-[#00703d] text-white text-sm px-4 py-2 rounded-md min-w-[80px]"
+                          >
+                            Continue
+                          </button>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
 
-                {step2Complete && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <h3 className="text-green-800 text-xl font-bold">Great Work!</h3>
-                    <p className="text-green-700">
-                      You've successfully solved the power of quotients problem!
-                    </p>
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <div
+                    className="nav-orbit-wrapper"
+                    style={{
+                      position: 'relative',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      visibility: showNavigationButtons && currentStepIndex > 0 ? 'visible' : 'hidden',
+                      opacity: showNavigationButtons && currentStepIndex > 0 ? 1 : 0,
+                      pointerEvents: showNavigationButtons && currentStepIndex > 0 ? 'auto' : 'none',
+                      transition: 'opacity 0.2s ease',
+                    }}
+                  >
+                    <div className="nav-button-orbit"></div>
+                    <div style={{ position: 'absolute', width: '32px', height: '32px', borderRadius: '50%', background: 'white', zIndex: 1 }}></div>
+                    <button
+                      onClick={() => handleNavigateHistory('back')}
+                      className={`nav-button w-8 h-8 flex items-center justify-center rounded-full bg-[#008545]/20 text-[#008545] hover:bg-[#008545]/30 relative z-50`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 18l-6-6 6-6"/>
+                      </svg>
+                    </button>
                   </div>
-                )}
+                  <span className="text-sm text-gray-500 min-w-[100px] text-center">
+                    Step {currentStepIndex + 1} of {steps.length}
+                  </span>
+                  <div
+                    className="nav-orbit-wrapper"
+                    style={{
+                      position: 'relative',
+                      width: '32px',
+                      height: '32px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      visibility: showNavigationButtons && currentStepIndex < steps.length - 1 ? 'visible' : 'hidden',
+                      opacity: showNavigationButtons && currentStepIndex < steps.length - 1 ? 1 : 0,
+                      pointerEvents: showNavigationButtons && currentStepIndex < steps.length - 1 ? 'auto' : 'none',
+                      transition: 'opacity 0.2s ease',
+                    }}
+                  >
+                    <div className="nav-button-orbit"></div>
+                    <div style={{ position: 'absolute', width: '32px', height: '32px', borderRadius: '50%', background: 'white', zIndex: 1 }}></div>
+                    <button
+                      onClick={() => handleNavigateHistory('forward')}
+                      className={`nav-button w-8 h-8 flex items-center justify-center rounded-full bg-[#008545]/20 text-[#008545] hover:bg-[#008545]/30 relative z-50`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 18l6-6-6-6"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
               </div>
-            )}
+            </div>
           </div>
-        </CardContent>
-      </Card>
-      <p className="text-center text-gray-600 mt-4">
-        Understanding powers of fractions is essential for algebra and higher mathematics!
-      </p>
-    </div>
+        )}
+      </div>
+    </>
   );
 };
 
